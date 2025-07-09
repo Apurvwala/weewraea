@@ -1,0 +1,40 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install system packages
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential openjdk-17-jdk python3-pip \
+            autoconf automake libtool pkg-config libffi-dev libssl-dev \
+            ffmpeg libjpeg-dev zlib1g-dev libfreetype6-dev \
+            libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+
+      - name: Install Python tools
+        run: |
+          pip install --upgrade pip
+          pip install cython buildozer
+
+      - name: Accept SDK licenses
+        run: mkdir -p ~/.android && touch ~/.android/repositories.cfg
+
+      - name: Build APK
+        run: buildozer android debug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: FaceApp-APK
+          path: bin/*.apk
