@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FaceApp Attendance</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        /* Base body styles for a light theme */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Light gray background */
+            color: #2d3748; /* Darker text for contrast */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            width: 100vw; /* Occupy full viewport width */
+            height: 100vh; /* Occupy full viewport height */
+            margin: 0;
+            overflow: hidden; /* Prevent scrollbars */
+            position: relative; /* For absolute positioning of children */
+        }
+
+        /* Video and Canvas container - now truly full screen */
+        .video-canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: white; /* Light background for video area */
+            overflow: hidden;
+            display: flex; /* Use flexbox for centering logo */
+            justify-content: center;
+            align-items: center;
+        }
+        .video-canvas-container video,
+        .video-canvas-container canvas {
+            position: absolute; /* Absolute positioning within its container */
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* Ensure video fills container, cropping if necessary */
+            transform: scaleX(-1); /* Mirror the video */
+        }
+        /* Logo styling */
+        #companyLogo {
+            max-width: 80%; /* Ensure logo doesn't overflow */
+            max-height: 80%;
+            object-fit: contain;
+            z-index: 1; /* Ensure logo is above default background */
+        }
+        /* Flash effect overlay should also be full screen */
+        #flashOverlay {
+            position: absolute;
+            inset: 0;
+            background-color: rgba(0, 255, 0, 0.5); /* Green flash */
+            opacity: 0;
+            transition: opacity 0.1s ease-out;
+            pointer-events: none;
+            z-index: 5; /* Below UI elements, above video */
+        }
+        #registerBtn{
+            border: 1px solid blue;
+            border-radius: 250px;
+            padding: 6px;
+            color: white;
+            background-color: blue;
+            padding-top: 13px;
+            padding-bottom: 13px;
+            font-size: 16px;
+        }
+        #updateBtn{
+            border: 1px solid blue;
+            border-radius: 250px;
+            padding: 6px;
+            color: white;
+            background-color: blue;
+            padding-top: 13px;
+            padding-bottom: 13px;
+            font-size: 16px;
+        }
+        /* Overlay for UI elements (status, preview, buttons) */
+        .ui-overlay {
+            position: absolute;
+            inset: 0; /* Covers the entire screen */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between; /* Pushes top to top, bottom to bottom */
+            padding: 1.5rem; /* Padding from edges for UI elements */
+            z-index: 10; /* Ensures UI is on top of video */
+            pointer-events: none; /* Allow clicks to pass through by default */
+        }
+        .ui-overlay > * {
+            pointer-events: auto; /* Re-enable pointer events for actual UI elements */
+        }
+
+        /* Status Label */
+        #statusMessage {
+            /* Centered at the top */
+            align-self: center; /* Centers horizontally within flex column */
+            max-width: 90%; /* Prevent it from being too wide on large screens */
+            background-color: rgba(255, 255, 255, 0.8); /* Semi-transparent white background */
+            color: #2d3748; /* Dark text */
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border-radius: 0.75rem;
+        }
+
+        /* Recognition Preview Card */
+        #previewCard {
+            align-self: flex-start; /* Aligns to the left */
+            margin-left: 2.5rem; /* Increased spacing from left edge */
+            margin-top: 2.5rem; /* Increased spacing from top edge */
+            background-color: rgba(255, 255, 255, 0.7); /* Semi-transparent white background */
+            box-shadow: 0 6px 10px -2px rgba(0, 0, 0, 0.15), 0 4px 6px -2px rgba(0, 0, 0, 0.08); /* Stronger shadow */
+            border-radius: 1rem; /* More rounded corners */
+            max-width: 350px; /* Increased max width significantly */
+            padding: 1.5rem; /* Increased padding */
+            text-align: center;
+        }
+        #previewCard h3 {
+            font-size: 1.5rem; /* Increased heading size */
+            color: #2d3748; /* Dark text */
+            margin-bottom: 1rem; /* Increased margin */
+        }
+        #previewCard img {
+            width: 180px; /* Increased image width */
+            height: 220px; /* Increased image height */
+            object-fit: cover;
+            border-radius: 1rem; /* More rounded corners */
+            border: 4px solid #3b82f6; /* Thicker blue border */
+            margin-bottom: 1rem; /* Increased margin */
+        }
+        #previewCard p {
+            font-size: 1.125rem; /* Increased text size */
+            color: #4a5568; /* Gray text */
+        }
+        #previewCard #previewName {
+            font-size: 1.875rem; /* Larger for name (text-3xl) */
+            font-weight: bold;
+            color: #3b82f6; /* Blue for name */
+        }
+        
+        /* Custom button styles with hover effects */
+        .btn-primary {
+            @apply bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 border-2 border-blue-700; /* Added border */
+        }
+        .btn-secondary {
+            @apply bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 border-2 border-gray-700; /* Added border */
+        }
+        .btn-success {
+            @apply bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 border-2 border-green-700; /* Added border */
+        }
+        .btn-danger {
+            @apply bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 border-2 border-red-700; /* Added border */
+        }
+
+        /* Status message animation */
+        @keyframes fadeInOut {
+            0%, 100% { opacity: 0; }
+            10%, 90% { opacity: 1; }
+        }
+        .status-message.animate-fade {
+            animation: fadeInOut 3s ease-in-out forwards;
+        }
+
+        /* Preview card animation */
+        .preview-card.animate-show {
+            animation: fadeInOut 3s ease-in-out forwards;
+            opacity: 1; /* Ensure it's fully visible during the animation */
+        }
+        .preview-card {
+            transition: opacity 0.3s ease;
+        }
+
+        /* Modal styling */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+        .modal-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        .modal-content {
+            background-color: #ffffff; /* White background for modals */
+            color: #2d3748; /* Dark text */
+            padding: 2rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 500px;
+            transform: translateY(-20px);
+            opacity: 0;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+            border: 4px solid transparent; /* Default transparent border */
+        }
+        .modal-overlay.show .modal-content {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        .modal-content h2 {
+            color: #2d3748; /* Dark heading text */
+        }
+        .modal-content input {
+            background-color: #edf2f7; /* Light input background */
+            border-color: #cbd5e0; /* Light border */
+            color: #2d3748; /* Dark text */
+            color: #718096; /* Gray placeholder */
+        }
+
+        /* Modal Theme Borders */
+        .modal-border-blue { border-color: #3b82f6; /* Blue-500 */ }
+        .modal-border-orange { border-color: #f97316; /* Orange-500 */ }
+        .modal-border-red { border-color: #ef4444; /* Red-500 */ }
+        .modal-border-green { border-color: #22c55e; /* Green-500 */ }
+
+        /* Slide Menu Styles */
+        .slide-menu {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 280px; /* Adjust width as needed */
+            height: 100%;
+            background-color: #ffffff; /* White background */
+            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.2);
+            transform: translateX(-100%); /* Initially off-screen to the left */
+            transition: transform 0.3s ease-in-out;
+            z-index: 100; /* Above other UI elements, below modals */
+            display: flex;
+            flex-direction: column;
+            padding: 1.5rem;
+            justify-content: flex-start; /* Pack content at the top */
+            align-items: center; /* Center children horizontally */
+        }
+
+        .slide-menu.active {
+            transform: translateX(0); /* Slide in */
+        }
+
+        .slide-menu-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 99; /* Below menu, above main content */
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+
+        .slide-menu-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* Menu header with logo */
+        .slide-menu-header {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 4rem; /* Increased space between logo and buttons */
+        }
+
+        .slide-menu-header img {
+            max-width: 185px; /* Increased logo size */
+            height: auto;
+            margin-left: 30px;
+            border-radius: 0.5rem;
+        }
+
+        /* Menu buttons container */
+        .slide-menu-buttons {
+            margin-top: 20px;
+            margin-left: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 3rem; /* Space between the two buttons */
+            width: 100%; /* Ensure buttons take full width of menu for consistent centering */
+            padding: 0 1rem; /* Add horizontal padding to prevent buttons from touching edges */
+        }
+
+        /* Live time display on main screen */
+        .live-time-main {
+            text-align: center;
+            font-size: 1.875rem; /* Increased font size to text-3xl */
+            font-weight: bold;
+            color: #3b82f6; /* Tailwind blue-500 */
+            padding: 1rem 2rem; /* Increased horizontal padding */
+            background-color: rgba(255, 255, 255, 0.8); /* Semi-transparent white background */
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            align-self: center; /* Center horizontally within ui-overlay */
+            margin-bottom: 1.5rem; /* Spacing from the bottom */
+            width: auto; /* Allow width to adjust to content */
+            min-width: 280px; /* Increased minimum width to ensure it's noticeably wider */
+        }
+
+        /* Hamburger icon */
+        .hamburger-menu-btn {
+            position: absolute;
+            top: 1.5rem;
+            left: 1.5rem;
+            z-index: 101; /* Above slide menu */
+            background-color: rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            padding: 0.75rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            pointer-events: auto; /* Ensure it's clickable */
+        }
+        .hamburger-menu-btn:hover {
+            background-color: rgba(255, 255, 255, 1);
+        }
+        .hamburger-menu-btn i {
+            color: #2d3748;
+            font-size: 1.5rem;
+        }
+
+        /* ON/OFF Toggle Button */
+        .power-toggle-btn {
+            position: absolute;
+            top: 1.5rem;
+            right: 1.5rem;
+            z-index: 101;
+            background-color: rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            padding: 0.75rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+            transition: background-color 0.2s ease, color 0.2s ease;
+            pointer-events: auto;
+        }
+        .power-toggle-btn:hover {
+            background-color: rgba(255, 255, 255, 1);
+        }
+        .power-toggle-btn i {
+            font-size: 1.5rem;
+        }
+        .power-toggle-btn.on i {
+            color: #22c55e; /* Green for ON */
+        }
+        .power-toggle-btn.off i {
+            color: #ef4444; /* Red for OFF */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-900">
+    <!-- Video and Canvas Section (Full Screen Background) -->
+    <div class="video-canvas-container">
+        <video id="videoElement" autoplay playsinline class="hidden"></video>
+        <canvas id="canvasElement" class="hidden"></canvas>
+        <img id="companyLogo" src="logo.jpg" alt="Company Logo" class="w-1/2 h-1/2 object-contain"> <!-- Company Logo -->
+        <div id="flashOverlay"></div> <!-- Flash effect overlay -->
+    </div>
+
+    <!-- Hamburger Menu Button -->
+    <button id="hamburgerBtn" class="hamburger-menu-btn">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <!-- ON/OFF Toggle Button -->
+    <button id="powerToggleBtn" class="power-toggle-btn off">
+        <i class="fas fa-power-off"></i>
+    </button>
+
+    <!-- Slide-out Menu -->
+    <div id="slideMenu" class="slide-menu">
+        <div class="slide-menu-header">
+            <!-- Placeholder for logo.png. Replace with your actual logo path. -->
+            <img src="nextgen.png" alt="App Logo">
+        </div>
+        <div class="slide-menu-buttons">
+            <button id="registerBtn" class="btn-primary w-full">
+                <i class="fas fa-user-plus mr-2"></i> Register New Face
+            </button>
+            <button id="updateBtn" class="btn-success w-full">
+                <i class="fas fa-sync-alt mr-2"></i> Update Photos
+            </button>
+        </div>
+    </div>
+
+    <!-- Slide Menu Overlay (for closing menu by clicking outside) -->
+    <div id="slideMenuOverlay" class="slide-menu-overlay"></div>
+
+    <!-- Overlay for UI elements -->
+    <div class="ui-overlay">
+        <!-- Top Status Message -->
+        <div id="statusMessage" class="status-message text-center text-xl font-bold py-3 px-6"></div>
+
+        <!-- Recognition Preview Card (on top-left side, within camera frame) -->
+        <div id="previewCard" class="preview-card bg-white rounded-xl shadow-lg p-3 flex flex-col items-center opacity-0">
+            <h3 class="text-base font-semibold mb-1 text-gray-800">Recognized</h3>
+            <img id="previewImage" class="w-20 h-24 object-cover rounded-lg border-2 border-blue-500 mb-1" src="https://placehold.co/80x96/E2E8F0/4A5568?text=No+Face" alt="Recognized Face">
+            <p id="previewName" class="text-lg font-bold text-blue-600 mb-0.5"></p>
+            <p id="previewTime" class="text-sm text-gray-500"></p>
+        </div>
+
+        <!-- Live time display moved to the main screen, at the bottom -->
+        <div id="liveTimeDisplay" class="live-time-main"></div>
+        
+    </div>
+
+    <!-- Modals -->
+
+    <!-- Generic Popup/Modal for messages -->
+    <div id="genericModalOverlay" class="modal-overlay">
+        <div class="modal-content text-center modal-border-blue"> <!-- Added modal-border-blue -->
+            <h2 id="genericModalTitle" class="text-2xl font-bold mb-4 text-gray-800"></h2>
+            <div id="genericModalContent" class="text-gray-700 text-lg mb-6"></div>
+            <button id="genericModalCloseBtn" class="btn-secondary w-full">Back to Camera</button> <!-- Added w-full -->
+        </div>
+    </div>
+
+    <!-- Register Face Modal -->
+    <div id="registerModalOverlay" class="modal-overlay">
+        <div class="modal-content modal-border-orange"> <!-- Added modal-border-orange -->
+            <h2 class="text-2xl font-bold mb-4 text-gray-800">Register New Face</h2>
+            <div class="flex flex-col gap-4">
+                <input type="text" id="registerName" placeholder="Full Name" class="p-3 rounded-lg bg-gray-200 border border-gray-300 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <input type="text" id="registerEmpId" placeholder="Employee ID" class="p-3 rounded-lg bg-gray-200 border border-gray-300 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <input type="email" id="registerEmail" placeholder="Email" class="p-3 rounded-lg bg-gray-200 border border-gray-300 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button id="captureFacesBtn" class="btn-primary w-full"><i class="fas fa-camera mr-2"></i> Capture Faces</button> <!-- Added w-full -->
+                <button id="cancelRegisterBtn" class="btn-secondary w-full">Cancel</button> <!-- Added w-full -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Update Photos Modal -->
+    <div id="updateModalOverlay" class="modal-overlay">
+        <div class="modal-content modal-border-red"> <!-- Added modal-border-red -->
+            <h2 class="text-2xl font-bold mb-4 text-gray-800">Update Photos</h2>
+            <div class="flex flex-col gap-4">
+                <input type="text" id="updateEmpId" placeholder="Employee ID" class="p-3 rounded-lg bg-gray-200 border border-gray-300 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button id="nextUpdateBtn" class="btn-primary w-full">Next <i class="fas fa-arrow-right ml-2"></i></button> <!-- Added w-full -->
+                <button id="cancelUpdateBtn" class="btn-secondary w-full">Cancel</button> <!-- Added w-full -->
+            </div>
+        </div>
+    </div>
+
+    <!-- OTP Verification Modal -->
+    <div id="otpModalOverlay" class="modal-overlay">
+        <div class="modal-content modal-border-green"> <!-- Added modal-border-green -->
+            <h2 class="text-2xl font-bold mb-4 text-gray-800">Verify OTP</h2>
+            <p id="otpMessage" class="text-gray-700 text-lg mb-4"></p>
+            <div class="flex flex-col gap-4">
+                <input type="text" id="otpInput" placeholder="6-digit OTP" class="p-3 rounded-lg bg-gray-200 border border-gray-300 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500" maxlength="6">
+                <button id="verifyOtpBtn" class="btn-primary w-full"><i class="fas fa-check-circle mr-2"></i> Verify</button> <!-- Added w-full -->
+                <button id="resendOtpBtn" class="btn-secondary w-full"><i class="fas fa-redo-alt mr-2"></i> Resend OTP</button> <!-- Added w-full -->
+                <button id="cancelOtpBtn" class="btn-secondary w-full">Cancel</button> <!-- Added w-full -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const VIDEO_ELEMENT = document.getElementById('videoElement');
+        const CANVAS_ELEMENT = document.getElementById('canvasElement');
+        const CONTEXT = CANVAS_ELEMENT.getContext('2d');
+        const STATUS_MESSAGE = document.getElementById('statusMessage');
+        const FLASH_OVERLAY = document.getElementById('flashOverlay');
+        const PREVIEW_CARD = document.getElementById('previewCard');
+        const PREVIEW_IMAGE = document.getElementById('previewImage');
+        const PREVIEW_NAME = document.getElementById('previewName');
+        const PREVIEW_TIME = document.getElementById('previewTime');
+        const COMPANY_LOGO = document.getElementById('companyLogo'); // New: Company Logo element
+
+        // Buttons (now inside slide menu)
+        const REGISTER_BTN = document.getElementById('registerBtn');
+        const UPDATE_BTN = document.getElementById('updateBtn');
+
+        // Modals
+        const GENERIC_MODAL_OVERLAY = document.getElementById('genericModalOverlay');
+        const GENERIC_MODAL_TITLE = document.getElementById('genericModalTitle');
+        const GENERIC_MODAL_CONTENT = document.getElementById('genericModalContent');
+        const GENERIC_MODAL_CLOSE_BTN = document.getElementById('genericModalCloseBtn');
+
+        const REGISTER_MODAL_OVERLAY = document.getElementById('registerModalOverlay');
+        const REGISTER_NAME_INPUT = document.getElementById('registerName');
+        const REGISTER_EMP_ID_INPUT = document.getElementById('registerEmpId');
+        const REGISTER_EMAIL_INPUT = document.getElementById('registerEmail');
+        const CAPTURE_FACES_BTN = document.getElementById('captureFacesBtn');
+        const CANCEL_REGISTER_BTN = document.getElementById('cancelRegisterBtn');
+
+        const UPDATE_MODAL_OVERLAY = document.getElementById('updateModalOverlay');
+        const UPDATE_EMP_ID_INPUT = document.getElementById('updateEmpId');
+        const NEXT_UPDATE_BTN = document.getElementById('nextUpdateBtn');
+        const CANCEL_UPDATE_BTN = document.getElementById('cancelUpdateBtn');
+
+        const OTP_MODAL_OVERLAY = document.getElementById('otpModalOverlay');
+        const OTP_MESSAGE = document.getElementById('otpMessage');
+        const OTP_INPUT = document.getElementById('otpInput');
+        const VERIFY_OTP_BTN = document.getElementById('verifyOtpBtn');
+        const RESEND_OTP_BTN = document.getElementById('resendOtpBtn');
+        const CANCEL_OTP_BTN = document.getElementById('cancelOtpBtn');
+
+        // New elements for slide menu and power toggle
+        const HAMBURGER_BTN = document.getElementById('hamburgerBtn');
+        const SLIDE_MENU = document.getElementById('slideMenu');
+        const SLIDE_MENU_OVERLAY = document.getElementById('slideMenuOverlay');
+        const LIVE_TIME_DISPLAY = document.getElementById('liveTimeDisplay');
+        const POWER_TOGGLE_BTN = document.getElementById('powerToggleBtn'); // New: Power Toggle Button
+
+
+        // Backend URL: Ensure this matches your Flask app's host and port.
+        const BACKEND_URL = 'http://localhost:5000';
+
+        let isCameraActive = false; // New: State variable for camera/backend communication
+        let captureMode = false;
+        let captureProgress = ""; // e.g., "3/10"
+        let currentEmpId = ""; // Used across update/OTP flow
+        let currentName = ""; // Used across update/OTP flow
+        let sound = new Audio('thank_you.mp3'); // Ensure thank_you.mp3 is in the same directory as index.html
+        let frameIntervalId; // To store the interval ID for sending frames
+
+        // --- Utility Functions ---
+
+        function showModal(modalElement) {
+            modalElement.classList.add('show');
+        }
+
+        function hideModal(modalElement) {
+            modalElement.classList.remove('show');
+        }
+
+        function showGenericPopup(title, message) {
+            GENERIC_MODAL_TITLE.textContent = title;
+            GENERIC_MODAL_CONTENT.innerHTML = message; // Use innerHTML for potential HTML content
+            showModal(GENERIC_MODAL_OVERLAY);
+        }
+
+        function showStatusMessage(message, duration = 3000, color = 'yellow') {
+            STATUS_MESSAGE.textContent = message;
+            // Set text color dynamically based on the 'color' parameter
+            if (color === 'lightgreen') {
+                STATUS_MESSAGE.style.color = '#10B981'; // Tailwind green-500
+            } else if (color === 'orange') {
+                STATUS_MESSAGE.style.color = '#F97316'; // Tailwind orange-500
+            } else if (color === 'red') {
+                STATUS_MESSAGE.style.color = '#EF4444'; // Tailwind red-500
+            } else if (color === 'yellow') {
+                STATUS_MESSAGE.style.color = '#F59E0B'; // Tailwind yellow-500
+            } else if (color === 'lightblue') {
+                STATUS_MESSAGE.style.color = '#3B82F6'; // Tailwind blue-500
+            } else {
+                STATUS_MESSAGE.style.color = '#F59E0B'; // Default to yellow-500
+            }
+
+            STATUS_MESSAGE.classList.add('animate-fade');
+            setTimeout(() => {
+                STATUS_MESSAGE.classList.remove('animate-fade');
+                STATUS_MESSAGE.textContent = ""; // Clear after animation
+            }, duration);
+        }
+
+        function flashEffect() {
+            FLASH_OVERLAY.style.opacity = '0.5';
+            setTimeout(() => {
+                FLASH_OVERLAY.style.opacity = '0';
+            }, 100);
+        }
+
+        function playSound() {
+            if (sound) {
+                sound.play().catch(e => console.error("Error playing sound:", e));
+            }
+        }
+
+        function displayRecognitionInfo(name, time, imageBase64) {
+            PREVIEW_NAME.textContent = name;
+            PREVIEW_TIME.textContent = time;
+            PREVIEW_IMAGE.src = `data:image/jpeg;base64,${imageBase64}`;
+            PREVIEW_CARD.classList.add('animate-show');
+            // Reset image after the animation duration (3 seconds)
+            setTimeout(() => {
+                PREVIEW_CARD.classList.remove('animate-show');
+                PREVIEW_IMAGE.src = "https://placehold.co/80x96/E2E8F0/4A5568?text=No+Face"; // Reset to placeholder
+            }, 3000); // Match animation duration
+        }
+
+        // --- Camera and Canvas Setup ---
+
+        async function startCameraAndProcessing() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                VIDEO_ELEMENT.srcObject = stream;
+                VIDEO_ELEMENT.onloadedmetadata = () => {
+                    VIDEO_ELEMENT.play();
+                    const containerWidth = CANVAS_ELEMENT.parentElement.clientWidth;
+                    const containerHeight = CANVAS_ELEMENT.parentElement.clientHeight;
+
+                    CANVAS_ELEMENT.width = containerWidth;
+                    CANVAS_ELEMENT.height = containerHeight;
+
+                    CANVAS_ELEMENT.style.left = `0px`;
+                    CANVAS_ELEMENT.style.top = `0px`;
+
+                    requestAnimationFrame(drawFrame);
+                    // Start sending frames to backend only if camera is active
+                    if (isCameraActive) {
+                        frameIntervalId = setInterval(sendFrameToBackend, 200); // Send frame every 200ms
+                    }
+                };
+                VIDEO_ELEMENT.classList.remove('hidden');
+                CANVAS_ELEMENT.classList.remove('hidden');
+                COMPANY_LOGO.classList.add('hidden'); // Hide logo when camera is on
+                showStatusMessage("Camera ON. Detecting faces...", 3000, 'lightblue');
+            } catch (err) {
+                console.error("Error accessing camera:", err);
+                showGenericPopup("Camera Error", "Cannot open camera. Please check permissions or if another app is using it.");
+                CANVAS_ELEMENT.style.backgroundColor = '#cbd5e0';
+                CONTEXT.font = '24px Inter';
+                CONTEXT.fillStyle = '#2d3748';
+                CONTEXT.textAlign = 'center';
+                CONTEXT.fillText('Camera Unavailable', CANVAS_ELEMENT.width / 2, CANVAS_ELEMENT.height / 2);
+                // Ensure UI reflects camera off state if it fails to start
+                isCameraActive = false;
+                POWER_TOGGLE_BTN.classList.remove('on');
+                POWER_TOGGLE_BTN.classList.add('off');
+                VIDEO_ELEMENT.classList.add('hidden');
+                CANVAS_ELEMENT.classList.add('hidden');
+                COMPANY_LOGO.classList.remove('hidden');
+            }
+        }
+
+        function stopCameraAndProcessing() {
+            if (VIDEO_ELEMENT.srcObject) {
+                VIDEO_ELEMENT.srcObject.getTracks().forEach(track => track.stop());
+                VIDEO_ELEMENT.srcObject = null;
+            }
+            if (frameIntervalId) {
+                clearInterval(frameIntervalId);
+            }
+            // Clear canvas
+            CONTEXT.clearRect(0, 0, CANVAS_ELEMENT.width, CANVAS_ELEMENT.height);
+            VIDEO_ELEMENT.classList.add('hidden');
+            CANVAS_ELEMENT.classList.add('hidden');
+            COMPANY_LOGO.classList.remove('hidden'); // Show logo when camera is off
+            showStatusMessage("Camera OFF. Backend communication paused.", 3000, 'red');
+            PREVIEW_CARD.classList.remove('animate-show'); // Hide preview card
+            PREVIEW_IMAGE.src = "https://placehold.co/80x96/E2E8F0/4A5568?text=No+Face"; // Reset placeholder
+            PREVIEW_NAME.textContent = "";
+            PREVIEW_TIME.textContent = "";
+        }
+
+        function drawFrame() {
+            if (VIDEO_ELEMENT.paused || VIDEO_ELEMENT.ended || !isCameraActive) return;
+
+            CONTEXT.clearRect(0, 0, CANVAS_ELEMENT.width, CANVAS_ELEMENT.height);
+            const videoAspectRatio = VIDEO_ELEMENT.videoWidth / VIDEO_ELEMENT.videoHeight;
+            const canvasAspectRatio = CANVAS_ELEMENT.width / CANVAS_ELEMENT.height;
+
+            let sx, sy, sWidth, sHeight;
+            let dx, dy, dWidth, dHeight;
+
+            if (videoAspectRatio > canvasAspectRatio) {
+                sHeight = VIDEO_ELEMENT.videoHeight;
+                sWidth = sHeight * canvasAspectRatio;
+                sx = (VIDEO_ELEMENT.videoWidth - sWidth) / 2;
+                sy = 0;
+            } else {
+                sWidth = VIDEO_ELEMENT.videoWidth;
+                sHeight = sWidth / canvasAspectRatio;
+                sx = 0;
+                sy = (VIDEO_ELEMENT.videoHeight - sHeight) / 2;
+            }
+
+            dx = 0;
+            dy = 0;
+            dWidth = CANVAS_ELEMENT.width;
+            dHeight = CANVAS_ELEMENT.height;
+
+            CONTEXT.drawImage(VIDEO_ELEMENT, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight);
+
+            if (captureMode && captureProgress) {
+                CONTEXT.font = 'bold 40px Inter';
+                CONTEXT.fillStyle = 'white';
+                CONTEXT.strokeStyle = 'black';
+                CONTEXT.lineWidth = 3;
+                CONTEXT.textAlign = 'center';
+                CONTEXT.textBaseline = 'middle';
+                const text = `Capturing: ${captureProgress}`;
+                CONTEXT.strokeText(text, CANVAS_ELEMENT.width / 2, CANVAS_ELEMENT.height - 50);
+                CONTEXT.fillText(text, CANVAS_ELEMENT.width / 2, CANVAS_ELEMENT.height - 50);
+            }
+
+            requestAnimationFrame(drawFrame);
+        }
+
+        async function sendFrameToBackend() {
+            if (!VIDEO_ELEMENT.srcObject || !isCameraActive) return;
+
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = VIDEO_ELEMENT.videoWidth;
+            tempCanvas.height = VIDEO_ELEMENT.videoHeight;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(VIDEO_ELEMENT, 0, 0, tempCanvas.width, tempCanvas.height);
+
+            const imageData = tempCanvas.toDataURL('image/jpeg', 0.8);
+
+            try {
+                const response = await fetch(`${BACKEND_URL}/process_frame`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: imageData })
+                });
+                const data = await response.json();
+
+                if (data.status === 'success' && data.faces) {
+                    drawFrame(); // Ensure latest video frame is drawn before drawing faces
+                    data.faces.forEach(face => {
+                        let [x, y, w, h] = face.box;
+
+                        const videoAspectRatio = VIDEO_ELEMENT.videoWidth / VIDEO_ELEMENT.videoHeight;
+                        const canvasAspectRatio = CANVAS_ELEMENT.width / CANVAS_ELEMENT.height;
+
+                        let scaleX = CANVAS_ELEMENT.width / VIDEO_ELEMENT.videoWidth;
+                        let scaleY = CANVAS_ELEMENT.height / VIDEO_ELEMENT.videoHeight;
+                        let offsetX = 0;
+                        let offsetY = 0;
+
+                        if (videoAspectRatio > canvasAspectRatio) {
+                            scaleX = CANVAS_ELEMENT.height / VIDEO_ELEMENT.videoHeight;
+                            scaleY = scaleX;
+                            offsetX = (CANVAS_ELEMENT.width - VIDEO_ELEMENT.videoWidth * scaleX) / 2;
+                        } else {
+                            scaleY = CANVAS_ELEMENT.width / VIDEO_ELEMENT.videoWidth;
+                            scaleX = scaleY;
+                            offsetY = (CANVAS_ELEMENT.height - VIDEO_ELEMENT.videoHeight * scaleY) / 2;
+                        }
+
+                        x = x * scaleX + offsetX;
+                        y = y * scaleY + offsetY;
+                        w = w * scaleX;
+                        h = h * scaleY; // Use scaleY for height for consistency
+
+
+                        const name = face.name;
+                        const emp_id = face.emp_id;
+                        const status = face.status;
+                        const confidence = face.confidence;
+
+                        let color = 'red';
+                        let text = "Unknown";
+                        let showTick = false;
+
+                        if (status === "recognized_new") {
+                            color = 'green';
+                            text = `${name} (${emp_id})`;
+                            showTick = true;
+                            showStatusMessage(`Attendance recorded for ${name}!`, 3000, 'lightgreen');
+                            playSound();
+                            flashEffect();
+
+                            const faceCanvas = document.createElement('canvas');
+                            faceCanvas.width = face.box[2];
+                            faceCanvas.height = face.box[3];
+                            const faceCtx = faceCanvas.getContext('2d');
+
+                            faceCtx.drawImage(tempCanvas, face.box[0], face.box[1], face.box[2], face.box[3], 0, 0, face.box[2], face.box[3]);
+                            const faceImageBase64 = faceCanvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+
+                            const now = new Date();
+                            const timeOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true };
+                            const formattedTime = now.toLocaleTimeString('en-US', timeOptions);
+
+                            displayRecognitionInfo(name, formattedTime, faceImageBase64);
+
+                        } else if (status === "recognized_recent") {
+                            color = 'orange';
+                            text = `${name} (${emp_id})`;
+                            showTick = true;
+                            showStatusMessage(`Attendance already recorded for ${name}.`, 3000, 'orange');
+                        } else {
+                            color = 'red';
+                            text = "Unknown";
+                        }
+
+                        CONTEXT.beginPath();
+                        CONTEXT.rect(x, y, w, h);
+                        CONTEXT.lineWidth = 4;
+                        CONTEXT.strokeStyle = color;
+                        CONTEXT.stroke();
+
+                        CONTEXT.font = 'bold 24px Inter';
+                        CONTEXT.fillStyle = color;
+                        CONTEXT.fillText(text, x, y > 20 ? y - 10 : y + h + 30);
+
+                        if (showTick) {
+                            CONTEXT.font = 'normal 24px "Font Awesome 6 Free"';
+                            CONTEXT.fillStyle = 'lightgreen';
+                            CONTEXT.fillText('\uf00c', x + CONTEXT.measureText(text).width + 10, y > 20 ? y - 10 : y + h + 30);
+                        }
+                    });
+                } else if (data.status === 'error') {
+                    console.error("Backend error:", data.message);
+                }
+            } catch (error) {
+                console.error("Error sending frame to backend:", error);
+                if (error instanceof TypeError && error.message === 'Failed to fetch') {
+                    showStatusMessage("Connection Error: Backend not reachable. Please ensure your Flask backend is running at " + BACKEND_URL + " and CORS is configured.", 8000, 'red');
+                } else {
+                    showStatusMessage(`An unexpected error occurred: ${error.message}`, 5000, 'red');
+                }
+            }
+        }
+
+        // --- Event Listeners and Modal Logic ---
+
+        // Slide menu toggle
+        function toggleSlideMenu() {
+            SLIDE_MENU.classList.toggle('active');
+            SLIDE_MENU_OVERLAY.classList.toggle('active');
+        }
+
+        HAMBURGER_BTN.addEventListener('click', toggleSlideMenu);
+        SLIDE_MENU_OVERLAY.addEventListener('click', toggleSlideMenu);
+
+        // Power Toggle Button functionality
+        POWER_TOGGLE_BTN.addEventListener('click', () => {
+            if (isCameraActive) {
+                // Turn OFF
+                stopCameraAndProcessing();
+                POWER_TOGGLE_BTN.classList.remove('on');
+                POWER_TOGGLE_BTN.classList.add('off');
+                isCameraActive = false;
+            } else {
+                // Turn ON
+                startCameraAndProcessing();
+                POWER_TOGGLE_BTN.classList.remove('off');
+                POWER_TOGGLE_BTN.classList.add('on');
+                isCameraActive = true;
+            }
+        });
+
+        // Function to update live time
+        function updateLiveTime() {
+            const now = new Date();
+            const options = {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            };
+            LIVE_TIME_DISPLAY.textContent = now.toLocaleString('en-US', options);
+        }
+
+        setInterval(updateLiveTime, 1000);
+        updateLiveTime();
+
+
+        REGISTER_BTN.addEventListener('click', () => {
+            hideModal(SLIDE_MENU);
+            hideModal(SLIDE_MENU_OVERLAY);
+            REGISTER_NAME_INPUT.value = '';
+            REGISTER_EMP_ID_INPUT.value = '';
+            REGISTER_EMAIL_INPUT.value = '';
+            showModal(REGISTER_MODAL_OVERLAY);
+        });
+
+        CANCEL_REGISTER_BTN.addEventListener('click', () => {
+            hideModal(REGISTER_MODAL_OVERLAY);
+        });
+
+        CAPTURE_FACES_BTN.addEventListener('click', async () => {
+            const name = REGISTER_NAME_INPUT.value.trim().toLowerCase().replace(/ /g, '_');
+            const empId = REGISTER_EMP_ID_INPUT.value.trim().toUpperCase();
+            const email = REGISTER_EMAIL_INPUT.value.trim();
+
+            if (!name || !empId || !email || !email.includes('@')) {
+                showStatusMessage("Please fill all fields correctly (Name, Employee ID, Valid Email).", 3000, 'red');
+                return;
+            }
+
+            hideModal(REGISTER_MODAL_OVERLAY);
+            showStatusMessage("Initiating face capture...", 3000, 'yellow');
+
+            try {
+                const response = await fetch(`${BACKEND_URL}/register_user`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, emp_id: empId, email })
+                });
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    captureMode = true;
+                    currentEmpId = empId;
+                    currentName = name;
+                    showStatusMessage("Get ready for capture!", 3000, 'lightgreen');
+                } else {
+                    showGenericPopup("Registration Error", data.message);
+                }
+            } catch (error) {
+                console.error("Error during registration:", error);
+                if (error instanceof TypeError && error.message === 'Failed to fetch') {
+                    showGenericPopup("Network Error", "Could not connect to the backend for registration. Please ensure your Flask backend is running at " + BACKEND_URL + " and CORS is configured.");
+                } else {
+                    showGenericPopup("Error during registration", `An unexpected error occurred: ${error.message}`);
+                }
+            }
+        });
+
+        UPDATE_BTN.addEventListener('click', () => {
+            hideModal(SLIDE_MENU);
+            hideModal(SLIDE_MENU_OVERLAY);
+            UPDATE_EMP_ID_INPUT.value = '';
+            showModal(UPDATE_MODAL_OVERLAY);
+        });
+
+        CANCEL_UPDATE_BTN.addEventListener('click', () => {
+            hideModal(UPDATE_MODAL_OVERLAY);
+        });
+
+        NEXT_UPDATE_BTN.addEventListener('click', async () => {
+            const empId = UPDATE_EMP_ID_INPUT.value.trim().toUpperCase();
+            if (!empId) {
+                showStatusMessage("Employee ID cannot be empty.", 3000, 'red');
+                return;
+            }
+            currentEmpId = empId;
+
+            hideModal(UPDATE_MODAL_OVERLAY);
+            showStatusMessage("Checking employee ID...", 2000, 'yellow');
+
+            try {
+                const response = await fetch(`${BACKEND_URL}/get_user_email`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ emp_id: empId })
+                });
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    const email = data.email;
+                    currentName = data.name || "Unknown User";
+
+                    if (email) {
+                        OTP_MESSAGE.textContent = `OTP will be sent to ${email}`;
+                        showModal(OTP_MODAL_OVERLAY);
+                        showStatusMessage("Sending OTP...", 2000, 'yellow');
+                        await sendOtp(empId, email, currentName);
+                    } else {
+                        showGenericPopup(
+                            "Email Not Found",
+                            `<p>No email found for Employee ID: <b>${empId}</b>.</p>
+                            <p>Please enter your email to proceed.</p>
+                            <input type="email" id="newEmailInput" placeholder="Enter your email" class="p-3 rounded-lg bg-gray-200 border border-gray-300 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 mt-4 mb-4 w-full">
+                            <button id="submitNewEmailBtn" class="btn-primary w-full">Submit Email</button>`
+                        );
+                        document.getElementById('genericModalCloseBtn').classList.add('hidden');
+                        document.getElementById('submitNewEmailBtn').addEventListener('click', async () => {
+                            const newEmail = document.getElementById('newEmailInput').value.trim();
+                            if (newEmail && newEmail.includes('@')) {
+                                hideModal(GENERIC_MODAL_OVERLAY);
+                                showStatusMessage("Registering email...", 2000, 'yellow');
+                                try {
+                                    const registerEmailResp = await fetch(`${BACKEND_URL}/register_user_email`, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ emp_id: empId, email: newEmail })
+                                    });
+                                    const registerEmailData = await registerEmailResp.json();
+                                    if (registerEmailData.status === 'success') {
+                                        OTP_MESSAGE.textContent = `OTP will be sent to ${newEmail}`;
+                                        showModal(OTP_MODAL_OVERLAY);
+                                        showStatusMessage("Sending OTP...", 2000, 'yellow');
+                                        await sendOtp(empId, newEmail, currentName);
+                                    } else {
+                                        showGenericPopup("Email Registration Error", registerEmailData.message);
+                                    }
+                                } catch (error) {
+                                    console.error("Error registering email:", error);
+                                    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+                                        showGenericPopup("Network Error", "Could not connect to the backend to register email. Please ensure your Flask backend is running at " + BACKEND_URL + " and CORS is configured.");
+                                    } else {
+                                        showGenericPopup("Error registering email", `An unexpected error occurred: ${error.message}`);
+                                    }
+                                }
+                            } else {
+                                showStatusMessage("Invalid email format.", 3000, 'red');
+                            }
+                        });
+                    }
+                } else {
+                    showGenericPopup("Error", data.message);
+                }
+            } catch (error) {
+                console.error("Error checking employee ID:", error);
+                if (error instanceof TypeError && error.message === 'Failed to fetch') {
+                    showGenericPopup("Network Error", "Could not connect to the backend. Please ensure your Flask backend is running at " + BACKEND_URL + " and CORS is configured.");
+                } else {
+                    showGenericPopup("Error checking employee ID", `An unexpected error occurred: ${error.message}`);
+                }
+            } finally {
+                document.getElementById('genericModalCloseBtn').classList.remove('hidden');
+            }
+        });
+
+        CANCEL_OTP_BTN.addEventListener('click', () => {
+            hideModal(OTP_MODAL_OVERLAY);
+        });
+
+        async function sendOtp(empId, email, name) {
+            try {
+                const response = await fetch(`${BACKEND_URL}/send_otp`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ emp_id: empId, email: email, name: name })
+                });
+                const data = await response.json();
+                if (data.status === 'success') {
+                    showStatusMessage("OTP sent! Check your email.", 3000, 'lightgreen');
+                } else {
+                    showGenericPopup("OTP Send Error", data.message);
+                }
+            } catch (error) {
+                console.error("Error sending OTP:", error);
+                if (error instanceof TypeError && error.message === 'Failed to fetch') {
+                    showGenericPopup("Network Error", "Could not connect to the backend to send OTP. Please ensure your Flask backend is running at " + BACKEND_URL + " and CORS is configured.");
+                } else {
+                    showGenericPopup("Error sending OTP", `An unexpected error occurred: ${error.message}`);
+                }
+            }
+        }
+
+        RESEND_OTP_BTN.addEventListener('click', async () => {
+            const empId = currentEmpId;
+            const email = OTP_MESSAGE.textContent.replace('OTP will be sent to ', '');
+            if (empId && email) {
+                OTP_INPUT.value = '';
+                showStatusMessage("Resending OTP...", 2000, 'yellow');
+                await sendOtp(empId, email, currentName);
+            } else {
+                showStatusMessage("Error resending OTP. Please restart the update process.", 3000, 'red');
+            }
+        });
+
+        VERIFY_OTP_BTN.addEventListener('click', async () => {
+            const empId = currentEmpId;
+            const otp = OTP_INPUT.value.trim();
+
+            if (!otp || otp.length !== 6) {
+                showStatusMessage("Please enter a 6-digit OTP.", 3000, 'red');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${BACKEND_URL}/verify_otp`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ emp_id: empId, otp: otp })
+                });
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    hideModal(OTP_MODAL_OVERLAY);
+                    showStatusMessage("OTP verified! Starting photo update capture...", 3000, 'lightgreen');
+                    try {
+                        const startCaptureResp = await fetch(`${BACKEND_URL}/start_update_capture`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ name: currentName, emp_id: empId })
+                        });
+                        const startCaptureData = await startCaptureResp.json();
+                        if (startCaptureData.status === 'success') {
+                            captureMode = true;
+                        } else {
+                            showGenericPopup("Capture Start Error", startCaptureData.message);
+                        }
+                    } catch (error) {
+                        console.error("Error starting update capture:", error);
+                        if (error instanceof TypeError && error.message === 'Failed to fetch') {
+                            showGenericPopup("Network Error", "Could not connect to the backend to start capture. Please ensure your Flask backend is running at " + BACKEND_URL + " and CORS is configured.");
+                        } else {
+                            showGenericPopup("Error starting update capture", `An unexpected error occurred: ${error.message}`);
+                        }
+                    }
+                } else {
+                    OTP_INPUT.value = '';
+                    showStatusMessage("Incorrect OTP. Please try again.", 3000, 'red');
+                }
+            } catch (error) {
+                console.error("Error verifying OTP:", error);
+                if (error instanceof TypeError && error.message === 'Failed to fetch') {
+                    showGenericPopup("Network Error", "Could not connect to the backend to verify OTP. Please ensure your Flask backend is running at " + BACKEND_URL + " and CORS is configured.");
+                } else {
+                    showGenericPopup("Error verifying OTP", `An unexpected error occurred: ${error.message}`);
+                }
+            }
+        });
+
+        GENERIC_MODAL_CLOSE_BTN.addEventListener('click', () => {
+            hideModal(GENERIC_MODAL_OVERLAY);
+        });
+
+        // Initial state on page load: Camera OFF, Logo visible
+        window.onload = () => {
+            updateLiveTime();
+            // Initially, the camera is off, and the logo is displayed
+            VIDEO_ELEMENT.classList.add('hidden');
+            CANVAS_ELEMENT.classList.add('hidden');
+            COMPANY_LOGO.classList.remove('hidden');
+            POWER_TOGGLE_BTN.classList.add('off'); // Ensure it starts in the 'off' state
+            console.log("Application loaded. Click the power button to start the camera and face detection.");
+            console.log("Remember to start your Flask backend manually by running 'python app.py' in your terminal.");
+        };
+    </script>
+</body>
+</html>
